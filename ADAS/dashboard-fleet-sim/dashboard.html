@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LaneX Command Center</title>
+    <script src="https://unpkg.com/paho-mqtt/paho-mqtt.js"></script>
+    <style>
+        body {
+            background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 20px;
+        }
+        h1 { text-align: center; color: #58a6ff; font-weight: 300; letter-spacing: 2px; text-transform: uppercase;}
+        .container { display: flex; gap: 20px; margin-top: 30px; }
+        .panel { flex: 1; background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
+        .panel h2 { margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; color: #8b949e; }
+        
+        /* Dynamic Cards */
+        .card { background-color: #21262d; border: 1px solid #30363d; border-radius: 6px; padding: 15px; margin-bottom: 15px; transition: 0.3s; }
+        .card h3 { margin: 0 0 10px 0; color: #58a6ff; }
+        .status-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        
+        /* Status Colors */
+        .status-working { background-color: #238636; color: white; }
+        .status-requesting { background-color: #d29922; color: black; }
+        .status-driving { background-color: #1f6feb; color: white; }
+        .status-charging { background-color: #8957e5; color: white; }
+        .status-queued { background-color: #9e6a03; color: white; }
+        
+        /* Battery Bar */
+        .battery-container { width: 100%; background-color: #0d1117; border-radius: 4px; margin-top: 10px; height: 10px; overflow: hidden;}
+        .battery-level { height: 100%; background-color: #2ea043; width: 0%; transition: width 0.5s; }
+        .battery-low { background-color: #f85149; }
+    </style>
+</head>
+<body>
+
+    <h1>LaneX Autonomous Ecosystem</h1>
+    
+    <div class="container">
+        <div class="panel" id="fleet-panel">
+            <h2>Active Fleet Telemetry</h2>
+            <div id="vehicles-container">
+                </div>
+        </div>
+
+        <div class="panel" id="infra-panel">
+            <h2>Charging Infrastructure</h2>
+            <div id="chargers-container">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // Wait for the window (and external scripts) to fully load before running our logic
+        window.onload = function() {
+            console.log("Window loaded, initializing LaneX Dashboard...");
+            
+            // Store known entities
+            const vehicles = {};
+            const chargers = {
+                "Master_C1": {status: "idle", vehicle: "None"},
+                "Slave_C2": {status: "idle", vehicle: "None"}
+            };
+
+            // Initialize MQTT Client via WebSockets (Port 9001)
+            // We declare it inside the onload function to ensure Paho is defined
+            let client;
+            try {
+                client = new Paho.MQTT.Client("127.0.0.1", 9001, "LaneX_Dashboard_" + parseInt(Math.random() * 100));
+            } catch (error) {
+                console.error("FATAL ERROR: Paho library failed to load. Are you connected to the internet?", error);
+                document.getElementById("vehicles-container").innerHTML = "<p style='color:red;'>Error loading MQTT library. Check internet connection.</p>";
+                return;
+            }
+
+            client.onConnectionLost = onConnectionLost;
+            client.onMessageArrived = onMessageArrived;
+
+            client.connect({
+                onSuccess: onConnect,
+                onFailure: function(e) { console.log("Failed to connect to LaneX Network", e); }
+            });
+
+            function onConnect() {
+                console.log("Connected to LaneX Network!");
+                client.subscribe("lanex/fleet/telemetry");
+                client.subscribe("lanex/charger/master/dispatch");
+                client.subscribe("lanex/charger/slave/finished");
+                renderChargers();
+            }
+
+            function onConnectionLost(responseObject) {
+                if (responseObject.errorCode !== 0) { console.log("Connection Lost: " + responseObject.errorMessage); }
+            }
+
+            function onMessageArrived(msg) {
+                try {
+                    const payload = JSON.parse(msg.payloadString);
+                    
+                    if (msg.destinationName === "lanex/fleet/telemetry") {
+                        updateVehicle(payload);
+                    }
+                    
+                    if (msg.destinationName === "lanex/charger/master/dispatch") {
+                        if(payload.action === "proceed_to_charge" && chargers[payload.assigned_charger]) {
+                            chargers[payload.assigned_charger].status = "occupied";
+                            chargers[payload.assigned_charger].vehicle = payload.vehicle_id;
+                            renderChargers();
+                        }
+                    }
+                    
+                    if (msg.destinationName === "lanex/charger/slave/finished") {
+                        if (chargers[payload.charger_id]) {
+                            chargers[payload.charger_id].status = "idle";
+                            chargers[payload.charger_id].vehicle = "None";
+                            renderChargers();
+                        }
+                    }
+                } catch(e) {
+                    console.error("Error processing message:", e);
+                }
+            }
+
+            function updateVehicle(data) {
+                vehicles[data.vehicle_id] = data;
+                let container = document.getElementById("vehicles-container");
+                let card = document.getElementById("veh-" + data.vehicle_id);
+                
+                if (!card) {
+                    card = document.createElement("div");
+                    card.id = "veh-" + data.vehicle_id;
+                    card.className = "card";
+                    container.appendChild(card);
+                }
+                
+                let batteryClass = data.soc <= 20 ? "battery-low" : "";
+                card.innerHTML = `
+                    <h3>${data.vehicle_id}</h3>
+                    <span class="status-badge status-${data.status}">${data.status}</span>
+                    <p style="margin: 10px 0 0 0; font-size: 14px; color: #8b949e;">Battery: ${data.soc}%</p>
+                    <div class="battery-container">
+                        <div class="battery-level ${batteryClass}" style="width: ${data.soc}%"></div>
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #8b949e; font-family: monospace;">GPS: ${data.gps.lat}, ${data.gps.lon}</p>
+                `;
+            }
+
+            function renderChargers() {
+                let container = document.getElementById("chargers-container");
+                container.innerHTML = ""; 
+                
+                for (let [id, data] of Object.entries(chargers)) {
+                    let badgeColor = data.status === "idle" ? "#238636" : "#f85149";
+                    container.innerHTML += `
+                        <div class="card">
+                            <h3>${id}</h3>
+                            <span class="status-badge" style="background-color: ${badgeColor}; color: white;">${data.status}</span>
+                            <p style="margin: 10px 0 0 0; font-size: 14px; color: #8b949e;">Serving: ${data.vehicle}</p>
+                        </div>
+                    `;
+                }
+            }
+        }; // End of window.onload
+    </script>
+</body>
+</html>

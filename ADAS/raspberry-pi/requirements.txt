@@ -1,0 +1,6 @@
+opencv-python
+numpy
+smbus2
+picamera2
+ultralytics
+torch

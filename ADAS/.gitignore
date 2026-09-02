@@ -1,0 +1,27 @@
+# --- Python (Raspberry Pi) ---
+__pycache__/
+*.pyc
+venv/
+*.egg-info/
+.env
+
+# --- STM32CubeIDE ---
+Debug/
+Release/
+*.launch
+.metadata/
+.settings/
+
+# --- Arduino / PlatformIO (ESP32) ---
+.pio/
+.vscode/
+*.bin
+*.elf
+
+# --- Secrets ---
+secrets.h
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+*.log

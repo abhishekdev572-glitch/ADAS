@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LaneX Command Center</title>
+    <style>
+        :root { 
+            --bg: #050505; --panel: #0d0d11; --border: #22222c; --text: #e4e4e7; 
+            --accent: #00f0ff; --success: #00ff66; --warning: #ffb700; --danger: #ff003c; 
+            --font-main: 'Segoe UI', system-ui, sans-serif; --font-mono: 'Courier New', Courier, monospace;
+        }
+        body { background-color: var(--bg); color: var(--text); font-family: var(--font-main); margin: 0; padding: 15px; height: 95vh; display: flex; flex-direction: column;}
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 15px; }
+        .logo-area h1 { margin: 0; color: var(--text); letter-spacing: 4px; font-weight: 400; font-size: 1.5rem; text-transform: uppercase; }
+        .logo-area span { color: var(--accent); font-weight: bold; }
+        .kpi-container { display: flex; gap: 20px; }
+        .kpi-box { background: var(--panel); border: 1px solid var(--border); padding: 10px 20px; border-radius: 6px; text-align: center; min-width: 120px;}
+        .kpi-value { font-size: 1.5rem; font-family: var(--font-mono); color: var(--accent); font-weight: bold; margin-bottom: 5px; }
+        .kpi-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+
+        .dashboard-grid { display: grid; grid-template-columns: 3fr 1fr; grid-template-rows: 1fr 1.2fr; gap: 15px; flex-grow: 1; min-height: 0;}
+        .panel { background-color: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; overflow: hidden; position: relative;}
+        .panel-title { font-size: 0.85rem; color: #888; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 8px;}
+        
+        .fleet-area { grid-column: 1; grid-row: 1; overflow-y: auto; padding-right: 5px;}
+        .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+        .card { background-color: #15151a; padding: 12px; border-radius: 6px; border-left: 3px solid var(--border); transition: 0.2s; position: relative;}
+        .card h3 { margin: 0 0 8px 0; font-size: 1rem; color: #fff; display: flex; justify-content: space-between; align-items: center;}
+        .badge { padding: 3px 6px; border-radius: 3px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; margin-right: 25px; }
+        
+        .settings-btn { position: absolute; top: 10px; right: 10px; font-size: 1.1rem; background: none; border: none; color: #555; cursor: pointer; transition: 0.3s; padding: 0;}
+        .settings-btn:hover { color: var(--accent); transform: rotate(45deg);}
+        
+        .status-working { border-left-color: var(--success); }
+        .status-working .badge { background: rgba(0, 255, 102, 0.1); color: var(--success); }
+        .status-idle { border-left-color: #aaa; }
+        .status-idle .badge { background: rgba(170, 170, 170, 0.1); color: #aaa; }
+        .status-pre_booking { border-left-color: var(--accent); }
+        .status-pre_booking .badge { background: rgba(0, 240, 255, 0.1); color: var(--accent); }
+        .status-requesting { border-left-color: var(--warning); }
+        .status-requesting .badge { background: rgba(255, 183, 0, 0.1); color: var(--warning); }
+        .status-driving { border-left-color: var(--accent); }
+        .status-driving .badge { background: rgba(0, 240, 255, 0.1); color: var(--accent); }
+        .status-charging { border-left-color: #a855f7; }
+        .status-charging .badge { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+        .status-queued { border-left-color: var(--warning); }
+        .status-queued .badge { background: rgba(255, 183, 0, 0.1); color: var(--warning); }
+        .status-maintenance { border-left-color: var(--danger); opacity: 0.6; }
+        .status-maintenance .badge { background: rgba(255, 0, 60, 0.1); color: var(--danger); }
+
+        .battery-track { width: 100%; height: 6px; background-color: #333; border-radius: 3px; margin: 10px 0; overflow: hidden; }
+        .battery-fill { height: 100%; transition: width 0.3s ease, background-color 0.3s ease; }
+        .data-row { display: flex; justify-content: space-between; font-size: 0.75rem; color: #aaa; margin-top: 4px; font-family: var(--font-mono); }
+        .reservation-text { font-size: 0.7rem; color: var(--accent); font-style: italic; margin-top: 5px; text-align: right;}
+
+        .infra-area { grid-column: 2; grid-row: 1; overflow-y: auto;}
+        .charger-card { display: flex; justify-content: space-between; align-items: center; background: #15151a; padding: 12px; margin-bottom: 10px; border-radius: 6px; border: 1px solid var(--border); position: relative;}
+        .charger-info h4 { margin: 0 0 5px 0; font-size: 0.9rem;}
+        .charger-info span { font-size: 0.7rem; color: #888; font-family: var(--font-mono);}
+        .charger-status { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 8px currentColor; margin-right: 25px;}
+
+        .map-area { grid-column: 1; grid-row: 2; position: relative; padding: 0;}
+        #tactical-map { 
+            width: 100%; height: 100%; position: relative; overflow: hidden; border-radius: 0 0 8px 8px;
+            background-image: url('/static/airport_map.jpg');
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+        }
+        .map-overlay { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.4); pointer-events: none;}
+        
+        .map-title { position: absolute; top: 15px; left: 15px; font-size: 0.85rem; color: #fff; text-transform: uppercase; letter-spacing: 2px; z-index: 20; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border);}
+        
+        .map-charger { position: absolute; width: 30px; height: 30px; background: rgba(17, 17, 17, 0.9); border: 1px solid var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); z-index: 5;}
+        .map-charger::after { content: ''; width: 10px; height: 10px; border-radius: 50%; }
+        .map-charger.idle { border-color: var(--success); }
+        .map-charger.idle::after { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .map-charger.occupied { border-color: #a855f7; }
+        .map-charger.occupied::after { background: #a855f7; box-shadow: 0 0 10px #a855f7; }
+        .map-charger.maintenance { border-color: var(--danger); opacity: 0.5;}
+        .map-charger.maintenance::after { background: var(--danger); }
+        .charger-label { position: absolute; top: -18px; font-size: 0.6rem; color: #fff; background: rgba(0,0,0,0.6); padding: 1px 4px; border-radius: 2px; white-space: nowrap; font-family: var(--font-mono);}
+
+        .map-vehicle { position: absolute; width: 12px; height: 12px; border-radius: 50%; transform: translate(-50%, -50%); transition: left 1s linear, top 1s linear, background-color 0.5s; z-index: 10;}
+        .vehicle-label { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 5px; border-radius: 3px; white-space: nowrap; pointer-events: none; font-family: var(--font-mono); border: 1px solid #333;}
+
+        .log-area { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; background: #08080a;}
+        .terminal { flex-grow: 1; overflow-y: auto; font-family: var(--font-mono); font-size: 0.75rem; color: #aaa; padding-right: 5px; }
+        .log-entry { margin-bottom: 6px; border-bottom: 1px solid #1a1a1a; padding-bottom: 4px;}
+        .log-time { color: #555; margin-right: 8px; }
+        .log-warn { color: var(--warning); }
+        .log-err { color: var(--danger); }
+        .log-info { color: var(--accent); }
+        .log-success { color: var(--success); }
+
+        /* THE UPGRADED MODAL CSS */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; z-index: 1000;}
+        .modal-content { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; width: 400px; padding: 20px; box-shadow: 0 0 20px rgba(0, 240, 255, 0.2); transition: width 0.3s;}
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 20px;}
+        .modal-header h2 { margin: 0; font-size: 1.2rem; color: #fff;}
+        .close-btn { background: none; border: none; color: #aaa; font-size: 1.5rem; cursor: pointer;}
+        .close-btn:hover { color: #fff;}
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-size: 0.8rem; color: #888; margin-bottom: 5px; text-transform: uppercase;}
+        .form-group select { width: 100%; padding: 8px; background: #15151a; border: 1px solid var(--border); color: #fff; border-radius: 4px; font-family: var(--font-main);}
+        .modal-actions { display: flex; gap: 10px; margin-top: 25px;}
+        .btn { flex: 1; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: 0.2s;}
+        .btn-apply { background: var(--accent); color: #000;}
+        .btn-apply:hover { background: #00c0cc;}
+        
+        @keyframes pulse { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo-area">
+            <h1><span>LANEX</span> // COMMAND</h1>
+        </div>
+        <div class="kpi-container">
+            <div class="kpi-box">
+                <div class="kpi-value" id="kpi-health">--%</div>
+                <div class="kpi-label">Avg Fleet SOC</div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-value" id="kpi-power" style="color: var(--warning);">0 kW</div>
+                <div class="kpi-label">Grid Load</div>
+            </div>
+            <div class="kpi-box">
+                <div class="kpi-value" id="kpi-status" style="color: var(--success);">NOMINAL</div>
+                <div class="kpi-label">System Status</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="panel fleet-area">
+            <div class="panel-title">Active Fleet Telemetry (<span id="fleet-count">0</span>)</div>
+            <div class="grid-cards" id="fleet-container"></div>
+        </div>
+
+        <div class="panel infra-area">
+            <div class="panel-title">Charging Infrastructure</div>
+            <div id="infra-container"></div>
+        </div>
+
+        <div class="panel map-area">
+            <div class="map-title">GMR International Airport // Tarmac Overview</div>
+            <div id="tactical-map">
+                <div class="map-overlay"></div>
+            </div>
+        </div>
+
+        <div class="panel log-area">
+            <div class="panel-title">System Audit Log</div>
+            <div class="terminal" id="terminal-log"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="asset-modal">
+        <div class="modal-content" id="modal-box">
+            <div class="modal-header">
+                <h2 id="modal-title">Asset Control</h2>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            
+            <div style="display: flex; gap: 20px;">
+                <div id="video-feed-container" style="display: none; flex: 1.5; flex-direction: column; gap: 15px;">
+                    <div style="position: relative; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #000; min-height: 200px; display: flex; align-items: center;">
+                        <img id="rpi-stream" src="http://192.168.137.29:5000/video" style="width: 100%; display: block;" onerror="this.src='/static/cargo_a_feed.jpg'">
+                        <div style="position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.8); color: white; padding: 2px 8px; font-size: 0.7rem; font-weight: bold; border-radius: 4px; animation: pulse 1.5s infinite;">LIVE EDGE FEED</div>
+                    </div>
+                    
+                    <div style="background: #15151a; border: 1px solid var(--border); border-radius: 6px; padding: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: var(--accent); font-size: 0.85rem; text-transform: uppercase;">Lifecycle Diagnostics</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+    				<div class="data-row"><span>Health Score:</span><span id="dt-health" style="color: var(--success);">--</span></div>
+    				<div class="data-row"><span>Charge Cycles:</span><span id="dt-cycles">--</span></div>
+    				<div class="data-row"><span>Last Maint:</span><span id="dt-last">--</span></div>
+    				<div class="data-row"><span>Next Maint:</span><span id="dt-next">--</span></div>
+    
+   				 <div class="data-row" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 5px;"><span>Actual Draw:</span><span id="dt-power" 						style="color: var(--warning); font-weight: bold;">--</span></div>
+    				<div class="data-row" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 5px;"><span>Est. Runtime:</span><span id="dt-runtime" 						style="color: var(--accent); font-weight: bold;">--</span></div>
+			</div>
+                    </div>
+                </div>
+
+                <div id="controls-container" style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                    <input type="hidden" id="modal-asset-id">
+                    <div class="form-group">
+                        <label>Asset State</label>
+                        <select id="modal-state">
+                            <option value="ACTIVE">ACTIVE (Online)</option>
+                            <option value="MAINTENANCE">MAINTENANCE (Offline)</option>
+                        </select>
+                    </div>
+                    <div class="modal-actions" style="margin-top: auto;">
+                        <button class="btn btn-apply" onclick="applyAssetChanges()">Apply Directives</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const source = new EventSource("/stream");
+        let previousFleetState = {};
+        let systemChargers = {};
+        let activeModalAsset = null; 
+
+        const mapChargerCoords = {
+            "Master_C1": { x: 45, y: 35 }, "Slave_C2": { x: 55, y: 35 },
+            "Slave_C3": { x: 40, y: 40 }, "Slave_C4": { x: 60, y: 40 }
+        };
+
+        source.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            systemChargers = data.chargers; 
+            updateFleet(data.vehicles);
+            updateInfra(data.chargers);
+            updateKPIs(data.vehicles, data.chargers);
+            drawTacticalMap(data.vehicles, data.chargers);
+            detectEvents(data.vehicles);
+            
+            // DYNAMIC UPDATE: Flash the lifecycle metadata if Cargo_A modal is open
+            if (activeModalAsset === "Cargo_A" && data.vehicles["Cargo_A"]) {
+                const meta = data.vehicles["Cargo_A"].meta;
+                document.getElementById('dt-health').innerText = meta.health + '%';
+                document.getElementById('dt-cycles').innerText = meta.cycles;
+                document.getElementById('dt-last').innerText = meta.last_maint;
+                document.getElementById('dt-next').innerText = meta.next_maint;
+                
+                // FIXED NULL CHECK: Now it will show 0.0 W if the hardware actually reports 0.0 W
+                document.getElementById('dt-power').innerText = meta.real_power !== null ? meta.real_power.toFixed(2) + ' W' : 'Simulated';
+                document.getElementById('dt-runtime').innerText = meta.discharge_time !== null ? meta.discharge_time.toFixed(1) + ' hrs' : 'N/A';
+            }
+        };
+
+        function updateFleet(vehicles) {
+            const container = document.getElementById("fleet-container");
+            document.getElementById("fleet-count").innerText = Object.keys(vehicles).length;
+            let html = '';
+            for (const [vid, state] of Object.entries(vehicles)) {
+                let batColor = state.soc > 20 ? 'var(--success)' : (state.status === 'queued' ? 'var(--warning)' : 'var(--danger)');
+                if(state.status === 'maintenance') batColor = '#555';
+                
+                let resText = state.pre_booked && state.deadline !== null ? 
+                    `<div class="reservation-text">Pre-Booked: ${state.pre_booked} (Expires in ${state.deadline}s)</div>` : '';
+                
+                html += `
+                    <div class="card status-${state.status}">
+                        <button class="settings-btn" onclick="openModal('${vid}', 'vehicle')">⚙️</button>
+                        <h3>${vid} <span class="badge">${state.status}</span></h3>
+                        <div class="battery-track">
+                            <div class="battery-fill" style="width: ${state.soc}%; background-color: ${batColor};"></div>
+                        </div>
+                        <div class="data-row"><span>SOC/Load</span><span>${state.soc.toFixed(1)}% | ${state.payload}kg</span></div>
+                        <div class="data-row"><span>GPS</span><span>${state.gps.lat.toFixed(4)}, ${state.gps.lon.toFixed(4)}</span></div>
+                        ${resText}
+                    </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function updateInfra(chargers) {
+            const container = document.getElementById("infra-container");
+            let html = '';
+            for (const [cid, state] of Object.entries(chargers)) {
+                let color = state.status === 'idle' ? 'var(--success)' : (state.status === 'occupied' ? '#a855f7' : 'var(--danger)');
+                html += `
+                    <div class="charger-card">
+                        <button class="settings-btn" onclick="openModal('${cid}', 'charger')">⚙️</button>
+                        <div class="charger-info">
+                            <h4>${cid}</h4>
+                            <span>${state.status === 'idle' ? 'Awaiting Vehicle' : (state.status === 'maintenance' ? 'OFFLINE' : 'Charging: ' + state.vehicle)}</span>
+                        </div>
+                        <div class="charger-status" style="color: ${color}; background: ${color};"></div>
+                    </div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function drawTacticalMap(vehicles, chargers) {
+            const map = document.getElementById("tactical-map");
+            map.innerHTML = '<div class="map-overlay"></div>'; 
+
+            for (const [cid, coords] of Object.entries(mapChargerCoords)) {
+                let status = chargers[cid] ? chargers[cid].status : 'idle';
+                map.innerHTML += `<div class="map-charger ${status}" style="left: ${coords.x}%; top: ${coords.y}%;"><div class="charger-label">${cid}</div></div>`;
+            }
+
+            const centerLat = 20.2960; const centerLon = 85.8240; const scale = 3000; 
+
+            for (const [vid, state] of Object.entries(vehicles)) {
+                if(state.status === 'maintenance') continue; 
+
+                let x, y;
+                let activeCharger = state.status === 'charging' || state.status === 'driving' ? 
+                    Object.keys(chargers).find(c => chargers[c].vehicle === vid) : null;
+                
+                if (activeCharger && mapChargerCoords[activeCharger]) {
+                    x = mapChargerCoords[activeCharger].x; y = mapChargerCoords[activeCharger].y;
+                } else {
+                    x = 50 + ((state.gps.lon - centerLon) * scale); y = 50 - ((state.gps.lat - centerLat) * scale);
+                }
+
+                x = Math.max(5, Math.min(95, x)); y = Math.max(5, Math.min(95, y));
+
+                let color = "var(--success)";
+                if(state.status === "idle") color = "#aaa";
+                if(state.status === "charging") color = "#a855f7";
+                if(state.status === "pre_booking" || state.status === "requesting") color = "var(--warning)";
+                if(state.status === "queued") color = "var(--warning)";
+
+                map.innerHTML += `<div class="map-vehicle" style="left: ${x}%; top: ${y}%; background: ${color}; box-shadow: 0 0 10px ${color};"><div class="vehicle-label">${vid}</div></div>`;
+            }
+        }
+
+        function updateKPIs(vehicles, chargers) {
+            let totalSoc = 0; let count = 0; let powerDraw = 0; let isQueued = false;
+            for (const v of Object.values(vehicles)) {
+                if(v.status !== 'maintenance') { totalSoc += v.soc; count++; }
+                if(v.status === 'queued') isQueued = true;
+            }
+            for (const c of Object.values(chargers)) { if(c.status === 'occupied') powerDraw += 50; }
+
+            document.getElementById("kpi-health").innerText = count ? (totalSoc/count).toFixed(1) + '%' : '--%';
+            document.getElementById("kpi-power").innerText = powerDraw + ' kW';
+            const statusEl = document.getElementById("kpi-status");
+            if(isQueued) { statusEl.innerText = "GRID CONGESTION"; statusEl.style.color = "var(--warning)"; } 
+            else { statusEl.innerText = "NOMINAL"; statusEl.style.color = "var(--success)"; }
+        }
+
+        function detectEvents(currentFleet) {
+            for (const vid in currentFleet) {
+                const current = currentFleet[vid];
+                const prev = previousFleetState[vid];
+                if (prev && prev.status !== current.status) {
+                    if (current.status === 'idle') writeLog('info', `[LOGISTICS] ${vid} halted for payload operations.`);
+                    else if (current.status === 'working' && prev.status === 'idle') writeLog('success', `[LOGISTICS] ${vid} routing resumed.`);
+                    else if (current.status === 'pre_booking') writeLog('info', `[PREDICTIVE] ${vid} hit 40%. Requesting reserve slot.`);
+                    else if (current.pre_booked && !prev.pre_booked) writeLog('success', `[DISPATCH] ${vid} secured reservation at ${current.pre_booked}.`);
+                    else if (current.status === 'requesting') writeLog('warn', `[CRITICAL] ${vid} dropped to 20%. Initiating final approach.`);
+                    else if (current.status === 'charging') writeLog('success', `[DOCKING] ${vid} confirmed connection. Power transfer initiated.`);
+                    else if (current.status === 'queued') writeLog('err', `[GRID FULL] ${vid} placed in virtual holding pattern.`);
+                    else if (current.status === 'maintenance') writeLog('err', `[SYS-ADMIN] ${vid} forced into MAINTENANCE mode.`);
+                }
+            }
+            previousFleetState = JSON.parse(JSON.stringify(currentFleet));
+        }
+
+        function writeLog(type, message) {
+            const terminal = document.getElementById("terminal-log");
+            let time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            let typeClass = type === 'warn' ? 'log-warn' : (type === 'err' ? 'log-err' : (type === 'success' ? 'log-success' : 'log-info'));
+            terminal.insertAdjacentHTML('afterbegin', `<div class="log-entry"><span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span></div>`);
+        }
+
+        /* --- DYNAMIC DIAGNOSTIC UI LOGIC --- */
+        function openModal(assetId, type) {
+            document.getElementById("asset-modal").style.display = "flex";
+            document.getElementById("modal-title").innerText = `Command Override: ${assetId}`;
+            document.getElementById("modal-asset-id").value = assetId;
+            
+            const modalBox = document.getElementById("modal-box");
+            const videoFeed = document.getElementById("video-feed-container");
+
+            if (assetId === "Cargo_A") {
+                // Expand the modal to reveal the Digital Twin Edge Feed
+                modalBox.style.width = "850px";
+                videoFeed.style.display = "flex";
+                activeModalAsset = assetId;
+                
+                // Force an image refresh just in case it stalled
+                document.getElementById("rpi-stream").src = "http://192.168.137.29:5000/video?" + new Date().getTime();
+            } else {
+                // Keep it small for normal assets
+                modalBox.style.width = "400px";
+                videoFeed.style.display = "none";
+                activeModalAsset = null;
+            }
+        }
+        
+        function closeModal() { 
+            document.getElementById("asset-modal").style.display = "none"; 
+            activeModalAsset = null;
+        }
+
+        function applyAssetChanges() {
+            const assetId = document.getElementById("modal-asset-id").value;
+            const state = document.getElementById("modal-state").value;
+            
+            fetch('/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: assetId, state: state })
+            }).then(res => res.json()).then(data => {
+                writeLog('warn', `[SYS-ADMIN] Directive sent to ${assetId}: ${state}`);
+                closeModal();
+            }).catch(err => alert("Error communicating with Master Node."));
+        }
+    </script>
+</body>
+</html>
