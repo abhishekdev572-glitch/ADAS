@@ -12,16 +12,16 @@ A multi-board Advanced Driver Assistance System (ADAS) built for a small-scale c
 | **Dashboard & Fleet Sim** | Web dashboard + MQTT-based fleet charging coordination, bridging in real battery telemetry | Python (Flask) + MQTT + HTML/JS |
 
 ```
- ┌────────────────┐   I2C   ┌──────────────────┐        ┌───────────────┐
- │  Raspberry Pi   ├────────►│   STM32 Nucleo    │        │     ESP32      │
- │  (Perception)   │         │  (Motor Control)  │        │ (Battery Mon.) │
- │  Python + OpenCV│         │  Steering/Throttle│        │  Voltage/Curr. │
- └────────────────┘         └──────────────────┘        └───────┬───────┘
-                                                                    │ UDP
-                                                          ┌─────────▼─────────┐
-                                                          │ Dashboard/Fleet Sim │
-                                                          │ Flask + MQTT + UI    │
-                                                          └────────────────────┘
+ ┌────────────────┐   I2C  ┌──────────────────┐        ┌───────────────┐
+ │ Raspberry Pi   ├───────►│   STM32 Nucleo   │        │     ESP32     │
+ │ (Perception)   │        │  (Motor Control) │        │ (Battery Mon.)│
+ │ Python + OpenCV│        │ Steering/Throttle│        │  Voltage/Curr.│
+ └────────────────┘        └──────────────────┘        └───────┬───────┘
+                                                                │ UDP
+                                                      ┌─────────▼─────────┐
+                                                      │ Dashboard/Fleet Sim│
+                                                      │ Flask + MQTT + UI  │
+                                                      └────────────────────┘
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for the full data-flow and wiring details.
